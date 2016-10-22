@@ -100,6 +100,33 @@ If nil, we will query $CARGO_HOME at runtime."
   (let ((root (locate-dominating-file (or buffer-file-name default-directory) "Cargo.toml")))
     (and root (file-truename root))))
 
+;; Variables used by `racer-debug'.
+(defvar racer--last-directory nil)
+(defvar racer--last-src-path nil)
+(defvar racer--last-cargo-home nil)
+(defvar racer--last-command nil)
+(defvar racer--last-args nil)
+
+(defun racer-debug ()
+  "Open a buffer with debug information necessary for filing a bug report."
+  (interactive)
+  (let ((buf (get-buffer-create "*racer-debug*"))
+        (inhibit-read-only t))
+    (with-current-buffer buf
+      (erase-buffer)
+      (setq buffer-read-only t)
+      (insert "Configuration:\n")
+      (insert "default-directory: " racer--last-directory "\n")
+      (insert "RUST_SRC_PATH: " racer--last-src-path "\n")
+      (insert "CARGO_HOME: " racer--last-cargo-home "\n\n")
+      (insert "Command run:\n")
+      (insert "$ " racer-cmd " " racer--last-command " " (s-join " " racer--last-args))
+      (insert "\n\nPlease report bugs ")
+      (insert (racer--url-button "on GitHub" "https://github.com/racer-rust/emacs-racer/issues/new")
+              "."))
+    (switch-to-buffer buf)
+    (goto-char (point-min))))
+
 (defun racer--call (command &rest args)
   "Call racer command COMMAND with args ARGS."
   (let ((rust-src-path (or racer-rust-src-path (getenv "RUST_SRC_PATH")))
@@ -111,6 +138,13 @@ If nil, we will query $CARGO_HOME at runtime."
                                         (format "RUST_SRC_PATH=%s" (expand-file-name rust-src-path))
                                         (format "CARGO_HOME=%s" (expand-file-name cargo-home)))
                                        process-environment)))
+      ;; Save variables for `racer-debug'.
+      (setq racer--last-directory default-directory)
+      (setq racer--last-src-path rust-src-path)
+      (setq racer--last-cargo-home cargo-home)
+      (setq racer--last-command command)
+      (setq racer--last-args args)
+      ;; Invoke racer.
       (apply #'process-lines racer-cmd command args))))
 
 (defun racer--call-at-point (command)
